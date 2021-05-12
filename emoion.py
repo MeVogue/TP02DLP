@@ -11,11 +11,10 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 from keras.optimizers import Adam
-#import keras.initializers as initializers##추가1
-from tensorflow.keras import initializers
 #가중치규제추가도 생각해보자 4장42페이지
 #validation도 필요
-#가중치 초기화함
+#가중치 초기화
+#k폴드,앙상블
 
 def extract_feature(file_name):
     X, sample_rate = librosa.load(file_name) #음원파일 불러옴-오디오시계열,샘플링속도
@@ -52,6 +51,7 @@ def one_hot_encode(labels):
     one_hot_encode=np.delete(one_hot_encode, 0, axis=1)
     return one_hot_encode
 
+#데이터 추출. 이미 데이터 추출되었으면 시간 오래 걸려서 생략
 #change the main_dir acordingly....
 # main_dir = 'C:/Audio_speech'
 # sub_dir=os.listdir(main_dir)
@@ -69,63 +69,31 @@ y=np.load('y.npy')
 train_x, test_x, train_y, test_y = train_test_split(X, y, test_size=0.1, random_state=60)
 train_x, val_x, train_y, val_y = train_test_split(train_x, train_y, test_size=0.1, random_state=60)
 
-
-#dnn parameters
+#층마다 차원
 n_dim = train_x.shape[1] #193
 n_classes = train_y.shape[1] #8
 n_hidden_units_1 = n_dim
-n_hidden_units_2 = 400 # approx n_dim * 2
-n_hidden_units_3 = 250 # half of layer 2
-n_hidden_units_4 = 100
+n_hidden_units_2 = 400
 
-print(f"n_classes {n_classes}")
-#initializer = initializers.RandomNormal(mean=0, stddev=0.01, seed=13)##추가1
-
-#교차검증 효과없는듯
-k = 3
-num_val_samples = len(train_x) // k
-all_scores = []
-for i in range(k):
-    print('처리중인 폴드 #', i)
-    # 검증 데이터 준비: k번째 분할
-    val_data = train_x[i * num_val_samples: (i + 1) * num_val_samples]
-    val_targets = train_x[i * num_val_samples: (i + 1) * num_val_samples]
-
-    # 훈련 데이터 준비: 다른 분할 전체
-    partial_train_data = np.concatenate(
-        [train_x[:i * num_val_samples],
-         train_x[(i + 1) * num_val_samples:]],
-        axis=0)
-    partial_train_targets = np.concatenate(
-        [train_y[:i * num_val_samples],
-         train_y[(i + 1) * num_val_samples:]],
-        axis=0)
-
-#defining the model
-def create_model(activation_function='relu', init_type='normal', dropout_rate=0.25):##0.2->0.3바꿈
+#모델 층
+def create_model(activation_function='relu', init_type='normal', dropout_rate=0.25):
     model = Sequential()
-    # layer 1
-    model.add(Dense(n_hidden_units_1, input_dim=n_dim, init=init_type, activation=activation_function))##initializer추가1
-    # layer 2
-    model.add(Dense(n_hidden_units_2, init=init_type, activation=activation_function))
+    model.add(Dense(n_hidden_units_1, input_dim=n_dim, init=init_type, activation=activation_function))# 1
+    model.add(Dense(n_hidden_units_2, init=init_type, activation=activation_function))  # 2
     model.add(Dropout(dropout_rate))
-    model.add(Dense(n_classes, init=init_type, activation='softmax'))##추가1
-    #model compilation
+    model.add(Dense(n_classes, init=init_type, activation='softmax')) # output
     model.compile(loss='categorical_crossentropy', optimizer=Adam(lr = 0.0005), metrics=['accuracy'])
     return model
 
-#create the model
-model = create_model()
-#train the model
+model = create_model() #모델생성
 epoch=150
-##배치사이즈추가
-train_history = model.fit(train_x, train_y, epochs=epoch, batch_size=10, validation_data=(val_x, val_y))##history->draw_history
+train_history = model.fit(train_x, train_y, epochs=epoch, batch_size=10, validation_data=(val_x, val_y))
 predict=model.predict(test_x,batch_size=4)
 (test_loss, test_acc) = model.evaluate(test_x,  test_y, verbose=2)
 print('\n테스트 정확도:', test_acc)
 
+#테스트데이터로 감정예측
 emotions=['neutral', 'calm', 'happy', 'sad', 'angry', 'fearful', 'disgust', 'surprised']
-#predicted emotions from the test set
 y_pred = np.argmax(predict, 1)
 predicted_emo=[]
 for i in range(0,test_y.shape[0]):
@@ -138,17 +106,7 @@ for i in range(0,test_y.shape[0]):
   emo=emotions[y_true[i]]
   actual_emo.append(emo)
 
-#generate the confusion matrix
-# cm =confusion_matrix(actual_emo, predicted_emo)
-# index = ['angry', 'calm', 'disgust', 'fearful', 'happy', 'neutral', 'sad', 'surprised']
-# columns = ['angry', 'calm', 'disgust', 'fearful', 'happy', 'neutral', 'sad', 'surprised']
-# cm_df = pd.DataFrame(cm,index,columns)
-# plt.figure(figsize=(10,6))
-# sns.heatmap(cm_df, annot=True)
-
-
-#https://needneo.tistory.com/30
-#generator추가해야함 val_loss쓰려면
+#그래프
 epochs = range(1,epoch+1)
 accuracy = train_history.history['accuracy']
 val_accuracy = train_history.history['val_accuracy']
@@ -171,6 +129,18 @@ plt.xlabel('Epochs')
 plt.ylabel('loss')
 plt.legend()
 
+##그림안그려짐 왜??
+# plt.subplot(2,2,3)
+# plt.plot(epochs, t_acc, 'k', label='t_acc')
+# plt.xlabel('Epochs')
+# plt.ylabel('acc')
+# plt.legend()
+#
+# plt.subplot(2,2,4)
+# plt.plot(epochs, t_loss, 'k', label='t_loss')
+# plt.xlabel('Epochs')
+# plt.ylabel('loss')
+# plt.legend()
 
 #plt.grid(True)
 plt.tight_layout()#떨어져있게 간격조정
