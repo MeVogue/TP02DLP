@@ -1,0 +1,19 @@
+import pymysql
+import serial
+conn = pymysql.connect(host = 'localhost',user='root',password='6427',db='home')
+ser = serial.Serial("com3",9600)
+sqlTr = "TRUNCATE TABLE livingroom"
+cur = conn.cursor()
+cur.execute(sqlTr) 
+
+while True:
+	res = ser.readline()
+	res = res.decode()[:len(res) - 2]
+	res = res.split('-')
+	sqlinser = "insert into room (tem,hum,pm) values (%s, %s,%s)"
+	cur.execute(sqlinser,(res[0],res[1],res[2]))
+	conn.commit()
+	cur.execute(sqlTr) 
+	conn.commit()
+
+conn.close()
